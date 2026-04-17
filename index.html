@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Game of Life v2.0</title>
+
+<meta name="apple-mobile-web-app-title" content="Game of Life">
+<meta name="theme-color" content="#0f0e1a">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.png">
+
+<style>
+  :root {
+    --purple: #7F77DD;
+    --purple-dark: #534AB7;
+    --purple-mid: #AFA9EC;
+    --bg: #0f0e1a;
+    --surface: #1a1828;
+    --surface2: #231f38;
+    --border: rgba(127,119,221,0.25);
+    --text: #f0eeff;
+    --text-muted: #9990cc;
+    --green: #1D9E75;
+    --red: #E24B4A;
+    --amber: #EF9F27;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { min-height: 100vh; background: var(--bg); color: var(--text); font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif; }
+  .app { max-width: 430px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 14px calc(80px + env(safe-area-inset-bottom)); }
+
+  .header { text-align: center; padding: 24px 0 8px; }
+  .header h1 { font-size: 22px; font-weight: 600; letter-spacing: 0.3px; }
+  .header p { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .balance-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px; padding: 20px; margin: 16px 0;
+  }
+  .balance-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .balance-value { font-size: 42px; font-weight: 700; color: var(--purple); line-height: 1; }
+  .balance-value span { font-size: 20px; font-weight: 400; }
+  .balance-meta { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+  .balance-meta-item { font-size: 12px; color: var(--text-muted); }
+  .balance-meta-item strong { color: var(--text); font-weight: 500; }
+
+  .undo-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface2); border: 1px solid rgba(239,159,39,0.3);
+    border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
+  }
+  .undo-bar.hidden { display: none; }
+  .undo-text { font-size: 13px; color: var(--amber); flex: 1; margin-right: 10px; }
+  .undo-btn {
+    background: rgba(239,159,39,0.2); border: 1px solid rgba(239,159,39,0.4);
+    color: var(--amber); font-size: 12px; padding: 5px 14px;
+    border-radius: 20px; cursor: pointer; font-weight: 500; white-space: nowrap;
+    font-family: inherit;
+  }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; background: var(--surface); border-radius: 14px; padding: 4px; }
+  .tab { flex: 1; padding: 12px 4px; min-height: 44px; border-radius: 10px; border: none; background: transparent; color: var(--text-muted); font-size: 13px; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+  .tab.active { background: var(--purple-dark); color: #fff; font-weight: 500; }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+  .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 600; }
+  .stat-value.purple { color: var(--purple); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.amber { color: var(--amber); }
+  .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  .progress-section { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 10px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+  .progress-label span:first-child { color: var(--text-muted); }
+  .progress-label span:last-child { color: var(--purple); font-weight: 500; }
+  .progress-bar-bg { background: var(--surface2); border-radius: 20px; height: 8px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 20px; background: var(--purple); transition: width 0.4s ease; }
+  .progress-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .progress-row { display: flex; align-items: center; gap: 10px; }
+  .progress-row-emoji { font-size: 14px; width: 20px; text-align: center; }
+  .progress-row-name { font-size: 12px; color: var(--text-muted); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .progress-row-bar { flex: 2; background: var(--surface2); border-radius: 20px; height: 5px; overflow: hidden; }
+  .progress-row-fill { height: 100%; border-radius: 20px; background: var(--purple); transition: width 0.4s; }
+  .progress-row-pct { font-size: 11px; color: var(--text-muted); width: 32px; text-align: right; flex-shrink: 0; }
+
+  .section { margin-bottom: 12px; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; background: var(--surface2);
+    border-radius: 14px 14px 0 0; border: 1px solid var(--border);
+    border-bottom: none; cursor: pointer; user-select: none;
+  }
+  .section-header.closed { border-radius: 14px; border-bottom: 1px solid var(--border); }
+  .section-title { font-size: 14px; font-weight: 500; flex: 1; }
+  .section-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .section-done { font-size: 11px; color: var(--green); }
+  .section-cnt { font-size: 12px; color: var(--text-muted); }
+  .section-arrow { color: var(--text-muted); font-size: 10px; transition: transform 0.2s; }
+  .section-arrow.open { transform: rotate(90deg); }
+
+  .tasks { border: 1px solid var(--border); border-top: none; border-radius: 0 0 14px 14px; overflow: hidden; }
+  .task-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; background: var(--surface);
+    border-bottom: 1px solid rgba(127,119,221,0.1); transition: background 0.15s;
+  }
+  .task-item:last-child { border-bottom: none; }
+  .task-item.done { opacity: 0.4; }
+  .task-item.done .task-name { text-decoration: line-through; }
+
+  .checkbox {
+    width: 22px; height: 22px; border-radius: 7px;
+    border: 1.5px solid var(--purple); background: transparent;
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  .checkbox.checked { background: var(--purple); border-color: var(--purple); }
+  .checkbox.checked::after { content: ''; display: block; width: 5px; height: 9px; border: 2px solid #fff; border-top: none; border-left: none; transform: rotate(45deg) translate(-1px,-1px); }
+
+  .task-name { flex: 1; font-size: 14px; line-height: 1.35; }
+  .task-pts-badge { font-size: 11px; color: var(--purple-mid); background: rgba(127,119,221,0.14); padding: 3px 9px; border-radius: 20px; flex-shrink: 0; white-space: nowrap; }
+  .task-del { color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 0 2px; opacity: 0.35; flex-shrink: 0; line-height: 1; }
+  .task-del:hover { opacity: 1; color: var(--red); }
+
+  .add-row { display: flex; gap: 6px; padding: 10px 12px; background: var(--surface); border-top: 1px dashed rgba(127,119,221,0.18); }
+  .add-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; color: var(--text); font-size: 13px; font-family: inherit; outline: none; }
+  .add-input::placeholder { color: var(--text-muted); }
+  .pts-input { width: 54px; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 8px 6px; color: var(--purple); font-size: 13px; text-align: center; outline: none; font-family: inherit; }
+  .add-btn { background: var(--purple-dark); border: none; border-radius: 9px; color: #fff; font-size: 18px; padding: 0 14px; min-height: 42px; cursor: pointer; flex-shrink: 0; font-family: inherit; }
+
+  .reward-tier-header { font-size: 12px; color: var(--text-muted); padding: 10px 4px 6px; font-weight: 500; letter-spacing: 0.3px; }
+  .reward-item { display: flex; align-items: center; gap: 10px; padding: 13px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; }
+  .reward-cost { font-size: 12px; color: var(--purple-mid); background: rgba(127,119,221,0.12); padding: 3px 10px; border-radius: 20px; flex-shrink: 0; white-space: nowrap; }
+  .reward-name { flex: 1; font-size: 14px; }
+  .spend-btn { background: var(--purple-dark); border: 1px solid var(--purple); color: #fff; font-size: 12px; padding: 6px 14px; border-radius: 9px; cursor: pointer; flex-shrink: 0; font-family: inherit; font-weight: 500; }
+  .spend-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+
+  .new-section-row { display: flex; gap: 8px; margin-top: 12px; }
+  .new-section-input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; color: var(--text); font-size: 13px; outline: none; font-family: inherit; }
+  .new-section-btn { background: var(--surface2); border: 1px solid var(--purple); border-radius: 12px; color: var(--purple); font-size: 13px; padding: 0 14px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+
+  .add-reward-row { display: flex; gap: 6px; margin-top: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+
+  .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--purple-dark); color: #fff; padding: 11px 22px; border-radius: 24px; font-size: 14px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity 0.25s; z-index: 999; white-space: nowrap; border: 1px solid var(--purple); }
+  .toast.show { opacity: 1; }
+
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  input[type=number] { -moz-appearance: textfield; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🎮 Game of Life v2.0</h1>
+    <p>Геймификация жизни</p>
+  </div>
+
+  <div class="balance-card">
+    <div class="balance-label">Баланс</div>
+    <div class="balance-value"><span id="balance-val">100</span> <span>В</span></div>
+    <div class="balance-meta">
+      <div class="balance-meta-item">Выполнено: <strong id="meta-done">0</strong></div>
+      <div class="balance-meta-item">Заработано: <strong id="meta-earned">0</strong> В</div>
+      <div class="balance-meta-item">Потрачено: <strong id="meta-spent">0</strong> В</div>
+    </div>
+  </div>
+
+  <div class="undo-bar hidden" id="undo-bar">
+    <span class="undo-text" id="undo-text">Последнее действие</span>
+    <button class="undo-btn" onclick="undo()">↩ Отменить</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('missions')">Миссии</button>
+    <button class="tab" onclick="switchTab('rewards')">Награды</button>
+    <button class="tab" onclick="switchTab('stats')">Прогресс</button>
+  </div>
+
+  <div id="tab-missions">
+    <div id="sections-container"></div>
+    <div class="new-section-row">
+      <input class="new-section-input" id="new-sec-name" placeholder="Новый уровень миссий..." />
+      <input class="pts-input" id="new-sec-range" placeholder="В" />
+      <button class="new-section-btn" onclick="addSection()">+ Уровень</button>
+    </div>
+  </div>
+
+  <div id="tab-rewards" style="display:none">
+    <div id="rewards-container"></div>
+    <div class="add-reward-row">
+      <input class="add-input" id="new-rew-name" placeholder="Название награды..." />
+      <input class="pts-input" id="new-rew-cost" type="number" placeholder="В" />
+      <button class="add-btn" onclick="addReward()">+</button>
+    </div>
+  </div>
+
+  <div id="tab-stats" style="display:none">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Баланс</div><div class="stat-value purple" id="s-balance">—</div><div class="stat-sub">текущий</div></div>
+      <div class="stat-card"><div class="stat-label">Выполнено</div><div class="stat-value green" id="s-done">—</div><div class="stat-sub">задач</div></div>
+      <div class="stat-card"><div class="stat-label">Заработано</div><div class="stat-value purple" id="s-earned">—</div><div class="stat-sub">всего В</div></div>
+      <div class="stat-card"><div class="stat-label">Потрачено</div><div class="stat-value amber" id="s-spent">—</div><div class="stat-sub">на награды</div></div>
+    </div>
+    <div class="progress-section">
+      <div class="progress-label"><span>Общий прогресс</span><span id="s-pct">0%</span></div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="s-progress-bar" style="width:0%"></div></div>
+      <div class="progress-list" id="s-progress-list"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const EMOJIS = ['🏆','🔥','📈','⚡','🍵','🌱'];
+let lastAction = null;
+let undoTimer = null;
+
+const defaultState = {
+  balance: 100, earned: 0, spent: 0, nextId: 300,
+  sections: [
+    { id: 1, emoji: '🏆', name: 'Миссии A+ (5000 В)', open: true, tasks: [
+      { id: 1, name: 'Полностью закрыть все долги', pts: 5000, done: false }
+    ]},
+    { id: 2, emoji: '🔥', name: 'Миссии A (1000–3000 В)', open: true, tasks: [
+      { id: 2, name: 'Закрыть Тинькофф', pts: 2000, done: false },
+      { id: 3, name: 'Продать бизнес с Митей → выхлоп 200–300к', pts: 2000, done: false },
+      { id: 4, name: 'Закрыть Сбербанк', pts: 1500, done: false }
+    ]},
+    { id: 3, emoji: '📈', name: 'Миссии B+ (300–500 В)', open: true, tasks: [
+      { id: 5, name: 'Закрыть Никиту', pts: 500, done: false },
+      { id: 6, name: 'Закрыть Альфу', pts: 300, done: false },
+      { id: 7, name: 'Найти постоянного клиента на 30к/мес', pts: 300, done: false }
+    ]},
+    { id: 4, emoji: '⚡', name: 'Миссии B (100–200 В)', open: false, tasks: [
+      { id: 8, name: 'Закрыть Митя + Коля', pts: 200, done: false },
+      { id: 9, name: 'Закрыть ВТБ', pts: 150, done: false },
+      { id: 10, name: 'Создать сайт и тг', pts: 150, done: false },
+      { id: 11, name: 'Закрыть кубышку', pts: 100, done: false },
+      { id: 12, name: 'Закрыть платёж по квартире', pts: 100, done: false },
+      { id: 13, name: 'Заработать 30к за 3–4 смены', pts: 100, done: false }
+    ]},
+    { id: 5, emoji: '🍵', name: 'Миссии C+ (30–50 В)', open: false, tasks: [
+      { id: 14, name: 'Провести первого клиента на 10к+', pts: 50, done: false },
+      { id: 15, name: 'Отложить на учёбу 12к', pts: 50, done: false },
+      { id: 16, name: 'Заработать 25к за 3 смены', pts: 50, done: false },
+      { id: 17, name: 'Свидание 10–15к', pts: 50, done: false },
+      { id: 18, name: 'Купить абонемент в зал', pts: 40, done: false },
+      { id: 19, name: 'Заплатить проценты Тинькофф', pts: 30, done: false },
+      { id: 20, name: 'Записаться к Лору', pts: 30, done: false },
+      { id: 21, name: 'Свидание 5к', pts: 30, done: false }
+    ]},
+    { id: 6, emoji: '🌱', name: 'Миссии C (5–20 В)', open: false, tasks: [
+      { id: 22, name: 'Сводить Соню по врачам', pts: 20, done: false },
+      { id: 23, name: 'Записаться к неврологу', pts: 20, done: false },
+      { id: 24, name: 'УЗИ ОБП', pts: 15, done: false },
+      { id: 25, name: 'Сходить к урологу', pts: 15, done: false },
+      { id: 26, name: 'Проверить ТТГ', pts: 15, done: false },
+      { id: 27, name: 'Сделать УЗИ почек', pts: 15, done: false },
+      { id: 28, name: 'ЭНМГ', pts: 15, done: false },
+      { id: 29, name: 'Заплатить проценты Никита', pts: 15, done: false },
+      { id: 30, name: 'Уделить час нейросетям', pts: 15, done: false },
+      { id: 31, name: 'Заплатить проценты Сбер', pts: 10, done: false },
+      { id: 32, name: 'Прочитать 30 страниц «Делай просто»', pts: 10, done: true },
+      { id: 33, name: 'Сделать 15х30*3 за день (пресс + отжимания)', pts: 10, done: false },
+      { id: 34, name: 'Прочесть и конспектировать 30 стр. по маркетингу', pts: 10, done: false },
+      { id: 35, name: 'Заплатить коммуналку', pts: 5, done: false }
+    ]}
+  ],
+  rewards: [
+    { id: 101, tier: 'A++ (10 000 В)', name: 'Покупка машины', cost: 10000 },
+    { id: 102, tier: 'A+ (5000 В)', name: 'Поездка на отдых с девушкой', cost: 5000 },
+    { id: 103, tier: 'A (1000–3000 В)', name: 'Личные покупки 10–20к', cost: 1000 },
+    { id: 104, tier: 'A (1000–3000 В)', name: 'Нож-бабочка 30к', cost: 3000 },
+    { id: 105, tier: 'A (1000–3000 В)', name: 'Купить скинов на 20к', cost: 2000 },
+    { id: 106, tier: 'B+ (300–500 В)', name: 'Сумка Chingate', cost: 300 },
+    { id: 107, tier: 'B (60–200 В)', name: 'Одежда срочная до 5к', cost: 100 },
+    { id: 108, tier: 'B (60–200 В)', name: 'Футболка дороже 2к', cost: 100 },
+    { id: 109, tier: 'B (60–200 В)', name: 'Одежда до 3к', cost: 80 },
+    { id: 110, tier: 'B (60–200 В)', name: 'Новая сумка', cost: 65 },
+    { id: 111, tier: 'B (60–200 В)', name: '5 часов CS', cost: 60 },
+    { id: 112, tier: 'C+ (30–50 В)', name: 'Футболка до 1000', cost: 50 },
+    { id: 113, tier: 'C+ (30–50 В)', name: 'Чайник проливной', cost: 30 },
+    { id: 114, tier: 'C+ (30–50 В)', name: 'Переходник для Mac', cost: 30 },
+    { id: 115, tier: 'C (10–20 В)', name: 'Пиалы для чая', cost: 20 },
+    { id: 116, tier: 'C (10–20 В)', name: 'Китайский чай', cost: 15 }
+  ]
+};
+
+let state;
+try {
+  const saved = localStorage.getItem('gol2_v3');
+  state = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(defaultState));
+} catch(e) {
+  state = JSON.parse(JSON.stringify(defaultState));
+}
+
+// Init balance for pre-done tasks if fresh start
+if (!localStorage.getItem('gol2_v3')) {
+  state.sections.forEach(sec => sec.tasks.forEach(t => {
+    if (t.done) { state.balance += t.pts; state.earned += t.pts; }
+  }));
+  save();
+}
+
+function save() {
+  try { localStorage.setItem('gol2_v3', JSON.stringify(state)); } catch(e) {}
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function showUndo(msg) {
+  const bar = document.getElementById('undo-bar');
+  document.getElementById('undo-text').textContent = msg;
+  bar.classList.remove('hidden');
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { bar.classList.add('hidden'); lastAction = null; }, 6000);
+}
+
+function undo() {
+  if (!lastAction) return;
+  const { type, data } = lastAction;
+  if (type === 'task-toggle') {
+    const sec = state.sections.find(s => s.id === data.secId);
+    const task = sec && sec.tasks.find(t => t.id === data.taskId);
+    if (!task) return;
+    const wasDone = task.done;
+    task.done = !task.done;
+    const delta = task.done ? task.pts : -task.pts;
+    state.balance += delta;
+    if (task.done) state.earned += task.pts; else state.earned -= task.pts;
+  } else if (type === 'reward-spend') {
+    state.balance += data.cost;
+    state.spent -= data.cost;
+  }
+  lastAction = null;
+  document.getElementById('undo-bar').classList.add('hidden');
+  save(); render(); showToast('↩ Отменено');
+}
+
+function switchTab(tab) {
+  ['missions','rewards','stats'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['missions','rewards','stats'][i] === tab);
+  });
+  if (tab === 'stats') renderStats();
+}
+
+function toggleSection(id) {
+  const s = state.sections.find(s => s.id === id);
+  if (s) { s.open = !s.open; save(); renderSections(); }
+}
+
+function toggleTask(secId, taskId) {
+  const sec = state.sections.find(s => s.id === secId);
+  const task = sec && sec.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.done = !task.done;
+  const delta = task.done ? task.pts : -task.pts;
+  state.balance += delta;
+  if (task.done) state.earned += task.pts; else state.earned -= task.pts;
+  lastAction = { type: 'task-toggle', data: { secId, taskId } };
+  const label = task.name.length > 28 ? task.name.substring(0,28) + '…' : task.name;
+  if (task.done) { showToast('+' + task.pts + ' В! 🎯'); showUndo('Выполнено: ' + label); }
+  else { showUndo('Снято: ' + label); }
+  save(); render();
+}
+
+function deleteTask(secId, taskId) {
+  const sec = state.sections.find(s => s.id === secId);
+  if (!sec) return;
+  const task = sec.tasks.find(t => t.id === taskId);
+  if (task && task.done) { state.balance -= task.pts; state.earned -= task.pts; }
+  sec.tasks = sec.tasks.filter(t => t.id !== taskId);
+  save(); render();
+}
+
+function addTaskToSection(secId) {
+  const nameEl = document.getElementById('tn-' + secId);
+  const ptsEl = document.getElementById('tp-' + secId);
+  const name = nameEl.value.trim();
+  const pts = parseInt(ptsEl.value) || 10;
+  if (!name) return;
+  const sec = state.sections.find(s => s.id === secId);
+  sec.tasks.push({ id: state.nextId++, name, pts, done: false });
+  nameEl.value = ''; ptsEl.value = '';
+  save(); render();
+}
+
+function addSection() {
+  const name = document.getElementById('new-sec-name').value.trim();
+  const range = document.getElementById('new-sec-range').value.trim();
+  if (!name) return;
+  const emoji = EMOJIS[state.sections.length % EMOJIS.length];
+  const label = range ? name + ' (' + range + ' В)' : name;
+  state.sections.push({ id: state.nextId++, emoji, name: label, open: true, tasks: [] });
+  document.getElementById('new-sec-name').value = '';
+  document.getElementById('new-sec-range').value = '';
+  save(); render();
+}
+
+function spendReward(id) {
+  const r = state.rewards.find(r => r.id === id);
+  if (!r || state.balance < r.cost) return;
+  state.balance -= r.cost;
+  state.spent += r.cost;
+  lastAction = { type: 'reward-spend', data: { id, cost: r.cost } };
+  showToast('🎁 ' + r.name);
+  const label = r.name.length > 28 ? r.name.substring(0,28) + '…' : r.name;
+  showUndo('Потрачено: ' + label);
+  save(); render();
+}
+
+function addReward() {
+  const name = document.getElementById('new-rew-name').value.trim();
+  const cost = parseInt(document.getElementById('new-rew-cost').value) || 10;
+  if (!name) return;
+  state.rewards.push({ id: state.nextId++, tier: 'Мои награды', name, cost });
+  document.getElementById('new-rew-name').value = '';
+  document.getElementById('new-rew-cost').value = '';
+  save(); render();
+}
+
+function renderStats() {
+  const totalTasks = state.sections.reduce((a,s) => a + s.tasks.length, 0);
+  const doneTasks = state.sections.reduce((a,s) => a + s.tasks.filter(t=>t.done).length, 0);
+  const pct = totalTasks ? Math.round(doneTasks / totalTasks * 100) : 0;
+  document.getElementById('s-balance').textContent = state.balance + ' В';
+  document.getElementById('s-done').textContent = doneTasks;
+  document.getElementById('s-earned').textContent = state.earned + ' В';
+  document.getElementById('s-spent').textContent = state.spent + ' В';
+  document.getElementById('s-pct').textContent = pct + '%';
+  document.getElementById('s-progress-bar').style.width = pct + '%';
+  const list = document.getElementById('s-progress-list');
+  list.innerHTML = '';
+  state.sections.forEach(sec => {
+    const total = sec.tasks.length;
+    const done = sec.tasks.filter(t=>t.done).length;
+    const p = total ? Math.round(done/total*100) : 0;
+    const row = document.createElement('div');
+    row.className = 'progress-row';
+    row.innerHTML = `
+      <span class="progress-row-emoji">${sec.emoji}</span>
+      <span class="progress-row-name">${sec.name.replace('Миссии ','')}</span>
+      <div class="progress-row-bar"><div class="progress-row-fill" style="width:${p}%"></div></div>
+      <span class="progress-row-pct">${done}/${total}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderSections() {
+  const container = document.getElementById('sections-container');
+  container.innerHTML = '';
+  state.sections.forEach(sec => {
+    const doneCnt = sec.tasks.filter(t=>t.done).length;
+    const wrap = document.createElement('div');
+    wrap.className = 'section';
+    const header = document.createElement('div');
+    header.className = 'section-header' + (sec.open ? '' : ' closed');
+    header.innerHTML = `
+      <span class="section-title">${sec.emoji} ${sec.name}</span>
+      <span class="section-meta">
+        ${doneCnt > 0 ? '<span class="section-done">✓' + doneCnt + '</span>' : ''}
+        <span class="section-cnt">${sec.tasks.length}</span>
+        <span class="section-arrow ${sec.open ? 'open' : ''}">▶</span>
+      </span>
+    `;
+    header.onclick = () => toggleSection(sec.id);
+    wrap.appendChild(header);
+    if (sec.open) {
+      const taskWrap = document.createElement('div');
+      taskWrap.className = 'tasks';
+      sec.tasks.forEach(task => {
+        const row = document.createElement('div');
+        row.className = 'task-item' + (task.done ? ' done' : '');
+        row.innerHTML = `
+          <div class="checkbox ${task.done ? 'checked' : ''}" onclick="toggleTask(${sec.id},${task.id})"></div>
+          <span class="task-name">${task.name}</span>
+          <span class="task-pts-badge">${task.pts} В</span>
+          <span class="task-del" onclick="deleteTask(${sec.id},${task.id})">×</span>
+        `;
+        taskWrap.appendChild(row);
+      });
+      const addRow = document.createElement('div');
+      addRow.className = 'add-row';
+      addRow.innerHTML = `
+        <input class="add-input" id="tn-${sec.id}" placeholder="Новая задача..." onkeydown="if(event.key==='Enter')addTaskToSection(${sec.id})" />
+        <input class="pts-input" id="tp-${sec.id}" type="number" placeholder="В" />
+        <button class="add-btn" onclick="addTaskToSection(${sec.id})">+</button>
+      `;
+      taskWrap.appendChild(addRow);
+      wrap.appendChild(taskWrap);
+    }
+    container.appendChild(wrap);
+  });
+}
+
+function renderRewards() {
+  const container = document.getElementById('rewards-container');
+  container.innerHTML = '';
+  const tiers = [...new Set(state.rewards.map(r => r.tier))];
+  tiers.forEach(tier => {
+    const label = document.createElement('div');
+    label.className = 'reward-tier-header';
+    label.textContent = tier;
+    container.appendChild(label);
+    state.rewards.filter(r => r.tier === tier).forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'reward-item';
+      row.innerHTML = `
+        <span class="reward-cost">${r.cost} В</span>
+        <span class="reward-name">${r.name}</span>
+        <button class="spend-btn" onclick="spendReward(${r.id})" ${state.balance < r.cost ? 'disabled' : ''}>Забрать</button>
+      `;
+      container.appendChild(row);
+    });
+  });
+}
+
+function render() {
+  const doneTasks = state.sections.reduce((a,s) => a + s.tasks.filter(t=>t.done).length, 0);
+  document.getElementById('balance-val').textContent = state.balance;
+  document.getElementById('meta-done').textContent = doneTasks;
+  document.getElementById('meta-earned').textContent = state.earned;
+  document.getElementById('meta-spent').textContent = state.spent;
+  renderSections();
+  renderRewards();
+}
+
+render();
+</script>
+</body>
+</html>
